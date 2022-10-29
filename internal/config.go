@@ -39,6 +39,7 @@ type Config struct {
 	Path                   string               `long:"url-path" env:"URL_PATH" default:"/_oauth" description:"Callback URL Path"`
 	SecretString           string               `long:"secret" env:"SECRET" description:"Secret used for signing (required)" json:"-"`
 	Whitelist              CommaSeparatedList   `long:"whitelist" env:"WHITELIST" env-delim:"," description:"Only allow given email addresses, can be set multiple times"`
+	GuildWhitelist         CommaSeparatedList   `long:"guild-whitelist" env:"GUILD_WHITELIST" env-delim:"," description:"Only allow users in given discord guilds"`
 	Port                   int                  `long:"port" env:"PORT" default:"4181" description:"Port to listen on"`
 
 	Providers provider.Providers `group:"providers" namespace:"providers" env-namespace:"PROVIDERS"`

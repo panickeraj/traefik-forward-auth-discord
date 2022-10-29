@@ -113,3 +113,8 @@ func (g *Google) GetUser(token string) (User, error) {
 
 	return user, err
 }
+
+func (g *Google) GetGuilds(token string) (Guilds, error) {
+	var guilds Guilds
+	return guilds, errors.New("Not Implemented")
+}

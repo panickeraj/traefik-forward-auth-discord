@@ -97,3 +97,8 @@ func (o *OIDC) GetUser(token string) (User, error) {
 
 	return user, nil
 }
+
+func (g *OIDC) GetGuilds(token string) (Guilds, error) {
+	var guilds Guilds
+	return guilds, errors.New("Not Implemented")
+}

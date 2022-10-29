@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"bytes"
 
 	"golang.org/x/oauth2"
 )
@@ -15,6 +17,7 @@ type GenericOAuth struct {
 	AuthURL      string   `long:"auth-url" env:"AUTH_URL" description:"Auth/Login URL"`
 	TokenURL     string   `long:"token-url" env:"TOKEN_URL" description:"Token URL"`
 	UserURL      string   `long:"user-url" env:"USER_URL" description:"URL used to retrieve user info"`
+	GuildURL     string   `long:"guild-url" env:"GUILD_URL" description:"URL used to retrieve guild info, must be set if GuildWhitelist is set"`
 	ClientID     string   `long:"client-id" env:"CLIENT_ID" description:"Client ID"`
 	ClientSecret string   `long:"client-secret" env:"CLIENT_SECRET" description:"Client Secret" json:"-"`
 	Scopes       []string `long:"scope" env:"SCOPE" env-delim:"," default:"profile" default:"email" description:"Scopes"`
@@ -90,7 +93,72 @@ func (o *GenericOAuth) GetUser(token string) (User, error) {
 	}
 
 	defer res.Body.Close()
-	err = json.NewDecoder(res.Body).Decode(&user)
+
+	bodybytes, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+        return user, err
+    }
+	fmt.Println("AJAY json:", string(bodybytes))
+
+	//err = json.NewDecoder(res.Body).Decode(&user)
+	err = json.NewDecoder(bytes.NewReader(bodybytes)).Decode(&user)
 
 	return user, err
+}
+
+// GetUser uses the given token and returns a complete provider.User object
+func (o *GenericOAuth) GetGuilds(token string) (Guilds, error) {
+	var guilds Guilds
+
+	req, err := http.NewRequest("GET", o.GuildURL, nil)
+	if err != nil {
+		return guilds, err
+	}
+
+	if o.TokenStyle == "header" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	} else if o.TokenStyle == "query" {
+		q := req.URL.Query()
+		q.Add("access_token", token)
+		req.URL.RawQuery = q.Encode()
+	}
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return guilds, err
+	}
+
+	defer res.Body.Close()
+
+	bodybytes, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+        return guilds, err
+    }
+	fmt.Println("================ AJAY json:", string(bodybytes))
+
+	dec := json.NewDecoder(bytes.NewReader(bodybytes))
+	// read open bracket
+	t, err := dec.Token()
+	if err != nil {
+		return guilds, err
+	}
+	fmt.Printf("%T: %v\n", t, t)
+
+	type Message struct {
+		Id string `json:"id"`
+		Name string `json:"name"`
+	}
+
+	for dec.More() {
+		var m Message
+		err := dec.Decode(&m)
+		if err != nil {
+			return guilds, err
+		}
+		fmt.Println("============ AJAY FOUND SERVER", m.Name, m.Id)
+		guilds.Ids = append(guilds.Ids, m.Id)
+	}
+
+	return guilds, nil
 }

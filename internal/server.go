@@ -92,7 +92,7 @@ func (s *Server) AuthHandler(providerName, rule string) http.HandlerFunc {
 		}
 
 		// Validate cookie
-		email, err := ValidateCookie(r, c)
+		email, guild_ids, err := ValidateCookie(r, c)
 		if err != nil {
 			if err.Error() == "Cookie has expired" {
 				logger.Info("Cookie has expired")
@@ -108,6 +108,13 @@ func (s *Server) AuthHandler(providerName, rule string) http.HandlerFunc {
 		valid := ValidateEmail(email, rule)
 		if !valid {
 			logger.WithField("email", email).Warn("Invalid email")
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		valid = ValidateGuilds(guild_ids)
+		if !valid {
+			logger.WithField("guild_ids", guild_ids).Warn("Invalid guilds")
 			http.Error(w, "Not authorized", 401)
 			return
 		}
@@ -177,6 +184,8 @@ func (s *Server) AuthCallbackHandler() http.HandlerFunc {
 			return
 		}
 
+		logger.Warn("AJAY WHOAH DID THIS WORK CAN I MAKE CHANGES HERE")
+
 		// Get user
 		user, err := p.GetUser(token)
 		if err != nil {
@@ -185,8 +194,17 @@ func (s *Server) AuthCallbackHandler() http.HandlerFunc {
 			return
 		}
 
+	
+		guilds, err := p.GetGuilds(token)
+		if err != nil {
+			logger.WithField("error", err).Error("Error getting user")
+			http.Error(w, "Service unavailable", 503)
+			return
+		}
+		logger.WithField("error",  guilds).Error("Trying to use guilds here")
+
 		// Generate cookie
-		http.SetCookie(w, MakeCookie(r, user.Email))
+		http.SetCookie(w, MakeCookie(r, user.Email, guilds.Ids))
 		logger.WithFields(logrus.Fields{
 			"provider": providerName,
 			"redirect": redirect,

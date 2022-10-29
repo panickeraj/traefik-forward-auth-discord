@@ -20,6 +20,7 @@ type Provider interface {
 	GetLoginURL(redirectURI, state string) string
 	ExchangeCode(redirectURI, code string) (string, error)
 	GetUser(token string) (User, error)
+	GetGuilds(token string) (Guilds, error)
 	Setup() error
 }
 
@@ -30,6 +31,10 @@ type token struct {
 // User is the authenticated user
 type User struct {
 	Email string `json:"email"`
+}
+
+type Guilds  struct {
+	Ids []string
 }
 
 // OAuthProvider is a provider using the oauth2 library

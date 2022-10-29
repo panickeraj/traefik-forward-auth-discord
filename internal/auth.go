@@ -19,41 +19,41 @@ import (
 
 // ValidateCookie verifies that a cookie matches the expected format of:
 // Cookie = hash(secret, cookie domain, email, expires)|expires|email
-func ValidateCookie(r *http.Request, c *http.Cookie) (string, error) {
+func ValidateCookie(r *http.Request, c *http.Cookie) (string, []string, error) {
 	parts := strings.Split(c.Value, "|")
 
-	if len(parts) != 3 {
-		return "", errors.New("Invalid cookie format")
+	if len(parts) != 4 {
+		return "", []string{}, errors.New("Invalid cookie format")
 	}
 
 	mac, err := base64.URLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", errors.New("Unable to decode cookie mac")
+		return "", []string{}, errors.New("Unable to decode cookie mac")
 	}
 
-	expectedSignature := cookieSignature(r, parts[2], parts[1])
+	expectedSignature := cookieSignature(r, parts[2], parts[3], parts[1])
 	expected, err := base64.URLEncoding.DecodeString(expectedSignature)
 	if err != nil {
-		return "", errors.New("Unable to generate mac")
+		return "", []string{}, errors.New("Unable to generate mac")
 	}
 
 	// Valid token?
 	if !hmac.Equal(mac, expected) {
-		return "", errors.New("Invalid cookie mac")
+		return "", []string{}, errors.New("Invalid cookie mac")
 	}
 
 	expires, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return "", errors.New("Unable to parse cookie expiry")
+		return "", []string{}, errors.New("Unable to parse cookie expiry")
 	}
 
 	// Has it expired?
 	if time.Unix(expires, 0).Before(time.Now()) {
-		return "", errors.New("Cookie has expired")
+		return "", []string{}, errors.New("Cookie has expired")
 	}
 
 	// Looks valid
-	return parts[2], nil
+	return parts[2], strings.Split(parts[3], ","), nil
 }
 
 // ValidateEmail checks if the given email address matches either a whitelisted
@@ -95,6 +95,24 @@ func ValidateEmail(email, ruleName string) bool {
 	}
 
 	return false
+}
+
+func ValidateGuilds(guilds []string) bool {
+	guild_whitelist := config.GuildWhitelist
+
+	if len(guild_whitelist) == 0 {
+		return true
+	}
+
+	for _, a := range guilds {
+		for _, b := range guild_whitelist {
+			if a == b {
+				fmt.Println("===================== AJAY USER IS IN GUILD WITH ID", a)
+				return true
+			}
+		}
+    }
+    return false
 }
 
 // ValidateWhitelist checks if the email is in whitelist
@@ -162,10 +180,11 @@ func useAuthDomain(r *http.Request) (bool, string) {
 // Cookie methods
 
 // MakeCookie creates an auth cookie
-func MakeCookie(r *http.Request, email string) *http.Cookie {
+func MakeCookie(r *http.Request, email string, guilds []string) *http.Cookie {
 	expires := cookieExpiry()
-	mac := cookieSignature(r, email, fmt.Sprintf("%d", expires.Unix()))
-	value := fmt.Sprintf("%s|%d|%s", mac, expires.Unix(), email)
+	guilds_commasep := strings.Join(guilds, ",")
+	mac := cookieSignature(r, email, guilds_commasep, fmt.Sprintf("%d", expires.Unix()))
+	value := fmt.Sprintf("%s|%d|%s|%s", mac, expires.Unix(), email, guilds_commasep)
 
 	return &http.Cookie{
 		Name:     config.CookieName,
@@ -313,10 +332,11 @@ func matchCookieDomains(domain string) (bool, string) {
 }
 
 // Create cookie hmac
-func cookieSignature(r *http.Request, email, expires string) string {
+func cookieSignature(r *http.Request, email, guilds, expires string) string {
 	hash := hmac.New(sha256.New, config.Secret)
 	hash.Write([]byte(cookieDomain(r)))
 	hash.Write([]byte(email))
+	hash.Write([]byte(guilds))
 	hash.Write([]byte(expires))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }
